@@ -1,0 +1,53 @@
+name: DevOps / Go CI
+
+on:
+  pull_request:
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
+  push:
+    branches: [main, master]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mod-tidy:
+    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-mod-tidy-check.yml@b253b2329a11552b6276781c56f6dc6fd1718710
+    with:
+      go-version: "1.25.8"
+      working-directory: "."
+
+  fmt:
+    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-fmt.yml@b253b2329a11552b6276781c56f6dc6fd1718710
+    with:
+      go-version: "1.25.8"
+      working-directory: "."
+
+  lint:
+    needs: [fmt]
+    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-lint.yml@b253b2329a11552b6276781c56f6dc6fd1718710
+    with:
+      go-version: "1.25.8"
+      working-directory: "."
+
+  test:
+    if: ${{ !github.event.pull_request.draft }}
+    needs: [fmt]
+    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-test.yml@b253b2329a11552b6276781c56f6dc6fd1718710
+    with:
+      go-version: "1.25.8"
+      working-directory: "."
+

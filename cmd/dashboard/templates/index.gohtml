@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Simulator Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Stock Simulator Dashboard</h1>
+      <p class="subtitle">Polling simulator API from server-side Go proxy</p>
+    </div>
+    <div class="meta">
+      <span class="pill">Simulator: <code>{{ .SimulatorBaseURL }}</code></span>
+      <span class="pill">Poll: <code>{{ .PollMs }}ms</code></span>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Dashboard sections">
+    <button id="tab-btn-overview" class="tab-btn active" type="button" data-tab="overview">Overview</button>
+    <button id="tab-btn-simulations" class="tab-btn" type="button" data-tab="simulations">Simulations</button>
+  </nav>
+
+  <main class="tab-container">
+    <section id="tab-overview" class="grid tab-pane active">
+      <section class="card status-card">
+        <h2>Engine Status</h2>
+        <div id="status-line" class="status-line">Loading...</div>
+        <div id="error-line" class="error-line"></div>
+        <div class="actions-row">
+          <button id="btn-refresh" type="button">Refresh now</button>
+          <button id="btn-reset" type="button">Reset (seed=1234)</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Live State</h2>
+        <table>
+          <tbody>
+            <tr><th>t</th><td id="state-t">-</td></tr>
+            <tr><th>price</th><td id="state-price">-</td></tr>
+            <tr><th>cash</th><td id="state-cash">-</td></tr>
+            <tr><th>units</th><td id="state-units">-</td></tr>
+            <tr><th>equity</th><td id="state-equity">-</td></tr>
+            <tr><th>leverage</th><td id="state-leverage">-</td></tr>
+            <tr><th>open orders</th><td id="state-open-orders">-</td></tr>
+            <tr><th>done</th><td id="state-done">-</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card chart-card">
+        <h2>Equity History</h2>
+        <canvas id="equity-chart" width="800" height="240"></canvas>
+      </section>
+
+      <section class="card">
+        <h2>Submit Action</h2>
+        <form id="step-form">
+          <label>
+            Side
+            <select name="side" id="field-side">
+              <option value="hold">hold</option>
+              <option value="buy">buy</option>
+              <option value="sell">sell</option>
+            </select>
+          </label>
+
+          <label>
+            Units
+            <input name="units" id="field-units" type="number" min="0" step="0.01" value="1" />
+          </label>
+
+          <label>
+            Order Type
+            <select name="order_type" id="field-order-type">
+              <option value="market">market</option>
+              <option value="limit">limit</option>
+            </select>
+          </label>
+
+          <label>
+            Limit Price (optional)
+            <input name="limit_price" id="field-limit-price" type="number" step="0.0001" />
+          </label>
+
+          <button type="submit">Step Once</button>
+        </form>
+        <pre id="step-result" class="result"></pre>
+      </section>
+    </section>
+
+    <section id="tab-simulations" class="grid tab-pane">
+      <section class="card sim-card">
+        <h2>Simulation Capability</h2>
+        <div id="sim-cap-line" class="status-line warn">Checking...</div>
+        <div id="sim-error-line" class="error-line"></div>
+        <div class="actions-row">
+          <button id="btn-sim-refresh" type="button">Refresh Flows</button>
+          <button id="btn-sim-cap-refresh" type="button">Re-probe Capability</button>
+        </div>
+      </section>
+
+      <section class="card sim-card chart-card">
+        <h2>Main vs Alternatives</h2>
+        <table>
+          <tbody id="sim-main-panel">
+            <tr><th>Main Flow</th><td id="sim-main-summary">-</td></tr>
+            <tr><th>Focus Alt</th><td id="sim-alt-summary">-</td></tr>
+          </tbody>
+        </table>
+        <canvas id="sim-compare-chart" width="800" height="220"></canvas>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Flow</th>
+                <th>Status</th>
+                <th>t</th>
+                <th>Equity</th>
+                <th>Delta vs Main</th>
+                <th>Reward</th>
+                <th>Fills</th>
+              </tr>
+            </thead>
+            <tbody id="sim-compare-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card sim-card chart-card">
+        <h2>Flows</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Compare</th>
+                <th>Flow ID</th>
+                <th>Hash</th>
+                <th>Type</th>
+                <th>Parent</th>
+                <th>Anchor</th>
+                <th>Range</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sim-flows-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card sim-card">
+        <h2>Create Alternative Branch</h2>
+        <form id="sim-branch-form">
+          <label>
+            Source Flow
+            <select id="field-source-flow"></select>
+          </label>
+          <label>
+            Rollback Steps
+            <input id="field-rollback-steps" type="number" min="1" value="10" />
+          </label>
+          <label>
+            Computed Target Main Index
+            <input id="field-target-main-index" type="text" value="-" readonly />
+          </label>
+
+          <div class="patch-editor">
+            <div class="patch-editor-head">
+              <strong>Action Patches</strong>
+              <button id="btn-add-patch" type="button">Add Patch Row</button>
+            </div>
+            <div id="patch-rows"></div>
+          </div>
+
+          <button type="submit">Create Branch</button>
+        </form>
+        <pre id="sim-create-result" class="result"></pre>
+      </section>
+
+      <section class="card sim-card">
+        <h2>Step / Trace Selected Flow</h2>
+        <label>
+          Active Flow
+          <select id="field-active-flow"></select>
+        </label>
+        <form id="sim-step-form">
+          <label>
+            Side
+            <select id="sim-field-side">
+              <option value="hold">hold</option>
+              <option value="buy">buy</option>
+              <option value="sell">sell</option>
+            </select>
+          </label>
+          <label>
+            Units
+            <input id="sim-field-units" type="number" min="0" step="0.01" value="1" />
+          </label>
+          <label>
+            Order Type
+            <select id="sim-field-order-type">
+              <option value="market">market</option>
+              <option value="limit">limit</option>
+            </select>
+          </label>
+          <label>
+            Limit Price (optional)
+            <input id="sim-field-limit-price" type="number" step="0.0001" />
+          </label>
+          <button type="submit">Step Branch Once</button>
+        </form>
+        <div class="actions-row">
+          <button id="btn-load-trace" type="button">Load Trace</button>
+        </div>
+        <pre id="sim-step-result" class="result"></pre>
+        <pre id="sim-trace-result" class="result"></pre>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    window.DASHBOARD_BOOT = {
+      pollMs: {{ .PollMs }},
+      simulatorBaseURL: {{ printf "%q" .SimulatorBaseURL }}
+    };
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

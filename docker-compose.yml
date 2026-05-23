@@ -1,0 +1,46 @@
+services:
+  simulator:
+    build:
+      context: ../ffreis-stock-simulator
+      dockerfile: container/Containerfile
+    image: ffreis-stock-simulator:local
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+      ENGINE_ENABLED: "true"
+      MARKET_DATA_CSV: /data/market.csv
+    volumes:
+      - ./testdata/market.csv:/data/market.csv:ro
+    ports:
+      - "18000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Containerfile
+      args:
+        BUILDER_IMAGE: "${DASHBOARD_BUILDER_IMAGE:-golang:1.25.8-alpine}"
+        RUNTIME_IMAGE: "${DASHBOARD_RUNTIME_IMAGE:-gcr.io/distroless/static-debian12:nonroot}"
+    image: ffreis-stock-dashboard:local
+    environment:
+      SIMULATOR_BASE_URL: http://simulator:8000
+      DASHBOARD_PORT: "8080"
+      DASHBOARD_POLL_MS: "1500"
+      SWAGGER_ENABLED: "${SWAGGER_ENABLED:-true}"
+      SWAGGER_TOKEN: "${SWAGGER_TOKEN:-}"
+      METRICS_ENABLED: "${METRICS_ENABLED:-false}"
+      DEBUG_PPROF_ENABLED: "${DEBUG_PPROF_ENABLED:-false}"
+    depends_on:
+      simulator:
+        condition: service_healthy
+    ports:
+      - "18080:8080"

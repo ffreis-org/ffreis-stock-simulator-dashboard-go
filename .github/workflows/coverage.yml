@@ -1,0 +1,38 @@
+name: Dashboard Coverage (Codecov)
+
+on:
+  pull_request:
+    paths:
+      - '**'
+      - '.github/workflows/**'
+  push:
+    branches: [main, master]
+    paths:
+      - '**'
+      - '.github/workflows/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    timeout-minutes: 30
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run tests with coverage
+        run: go test ./... -coverprofile=coverage.out -covermode=atomic
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-coverage
+          path: coverage.out
+      - uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238
+        with:
+          files: coverage.out
+          fail_ci_if_error: false

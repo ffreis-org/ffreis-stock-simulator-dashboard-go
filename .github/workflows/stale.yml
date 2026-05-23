@@ -1,0 +1,18 @@
+name: DevOps / Stale
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stale:
+    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-stale.yml@main
+    with:
+      only: "both"

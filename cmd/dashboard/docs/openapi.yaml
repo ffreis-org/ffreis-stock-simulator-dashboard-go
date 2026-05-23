@@ -1,0 +1,523 @@
+openapi: 3.1.0
+info:
+  title: Stock Simulator Dashboard API
+  version: 0.2.0
+  description: |
+    Go dashboard API for controlling and observing `ffreis-stock-simulator`.
+    It proxies simulator endpoints and adds simulation capability gating for branch flows.
+servers:
+  - url: /
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                required: [status]
+
+  /api/state:
+    get:
+      summary: Read dashboard aggregated state
+      responses:
+        "200":
+          description: Current dashboard state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StateEnvelope"
+        "502":
+          description: Simulator upstream unavailable
+
+  /api/reset:
+    post:
+      summary: Reset simulator through dashboard proxy
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                seed:
+                  type: integer
+                  nullable: true
+      responses:
+        "200":
+          description: Forwarded simulator response
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload
+        "413":
+          description: Payload too large
+        "502":
+          description: Simulator upstream unavailable
+
+  /api/step:
+    post:
+      summary: Execute one action through dashboard proxy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StepFormRequest"
+      responses:
+        "200":
+          description: Forwarded simulator step_many response
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid action payload
+        "413":
+          description: Payload too large
+        "502":
+          description: Simulator upstream unavailable
+
+  /api/sim/capabilities:
+    get:
+      summary: Probe branch simulation capability from simulator
+      parameters:
+        - name: refresh
+          in: query
+          description: Force bypass of cached capability probe.
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Capability status from dashboard cache/probe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimCapabilitiesStatus"
+
+  /api/sim/flows:
+    get:
+      summary: List main and alternative simulation flows (proxied)
+      responses:
+        "200":
+          description: Forwarded simulator flow list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowListResponse"
+        "503":
+          description: Simulation branch API unavailable upstream
+
+  /api/sim/branches:
+    post:
+      summary: Create a branch flow from an existing flow context (proxied)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchCreateRequest"
+      responses:
+        "200":
+          description: Forwarded simulator branch creation response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchCreateResponse"
+        "400":
+          description: Invalid branch payload
+        "413":
+          description: Payload too large
+        "503":
+          description: Simulation branch API unavailable upstream
+
+  /api/sim/flows/{id}/step_many:
+    post:
+      summary: Step a specific flow with multiple actions (proxied)
+      parameters:
+        - $ref: "#/components/parameters/FlowID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlowStepManyRequest"
+      responses:
+        "200":
+          description: Forwarded simulator step response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowStepManyResponse"
+        "400":
+          description: Invalid step payload
+        "413":
+          description: Payload too large
+        "503":
+          description: Simulation branch API unavailable upstream
+
+  /api/sim/flows/{id}/observe:
+    get:
+      summary: Observe a specific flow snapshot (proxied)
+      parameters:
+        - $ref: "#/components/parameters/FlowID"
+      responses:
+        "200":
+          description: Forwarded simulator flow observation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowObserveResponse"
+        "503":
+          description: Simulation branch API unavailable upstream
+
+  /api/sim/flows/{id}/trace:
+    get:
+      summary: Fetch full flow trace logs (proxied)
+      parameters:
+        - $ref: "#/components/parameters/FlowID"
+      responses:
+        "200":
+          description: Forwarded simulator trace payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowTraceResponse"
+        "503":
+          description: Simulation branch API unavailable upstream
+
+  /api/sim/flows/{id}:
+    delete:
+      summary: Delete an alternative flow (proxied)
+      parameters:
+        - $ref: "#/components/parameters/FlowID"
+      responses:
+        "200":
+          description: Forwarded simulator deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+        "503":
+          description: Simulation branch API unavailable upstream
+
+  /openapi.yaml:
+    get:
+      summary: OpenAPI document (when swagger is enabled)
+      responses:
+        "200":
+          description: OpenAPI YAML
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "401":
+          description: Token required when `SWAGGER_TOKEN` is configured
+        "404":
+          description: Route unavailable when swagger is disabled
+
+  /swagger:
+    get:
+      summary: Swagger UI page (when swagger is enabled)
+      responses:
+        "200":
+          description: Swagger UI
+          content:
+            text/html:
+              schema:
+                type: string
+        "401":
+          description: Token required when `SWAGGER_TOKEN` is configured
+        "404":
+          description: Route unavailable when swagger is disabled
+
+components:
+  parameters:
+    FlowID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    SimCapabilitiesStatus:
+      type: object
+      properties:
+        available:
+          type: boolean
+        checked_at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+      required: [available, checked_at]
+
+    Readyz:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        engine_enabled:
+          type: boolean
+        engine_ready:
+          type: boolean
+      required: [status, engine_enabled, engine_ready]
+
+    MarketWindowHandle:
+      type: object
+      properties:
+        start:
+          type: integer
+        end:
+          type: integer
+        t:
+          type: integer
+        current_price:
+          type: number
+      required: [start, end, t, current_price]
+
+    Observation:
+      type: object
+      properties:
+        market_window_handle:
+          $ref: "#/components/schemas/MarketWindowHandle"
+        portfolio_vector:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+        order_summary_vector:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            type: number
+        done:
+          type: boolean
+      required: [market_window_handle, portfolio_vector, order_summary_vector, done]
+
+    StepFormRequest:
+      type: object
+      properties:
+        side:
+          type: string
+          enum: [buy, sell, hold]
+        units:
+          type: number
+          minimum: 0
+        order_type:
+          type: string
+          enum: [market, limit]
+        limit_price:
+          type: number
+          nullable: true
+      required: [side, units, order_type]
+
+    StateEnvelope:
+      type: object
+      properties:
+        simulator_base_url:
+          type: string
+        fetched_at:
+          type: string
+          format: date-time
+        readyz:
+          $ref: "#/components/schemas/Readyz"
+        observation:
+          anyOf:
+            - $ref: "#/components/schemas/Observation"
+            - type: "null"
+        sim_capabilities:
+          $ref: "#/components/schemas/SimCapabilitiesStatus"
+        last_error:
+          type: string
+      required: [simulator_base_url, fetched_at, readyz, sim_capabilities]
+
+    EncodedAction:
+      type: object
+      properties:
+        side_code:
+          type: integer
+        units:
+          type: number
+        order_type_code:
+          type: integer
+        has_limit_price:
+          type: boolean
+        limit_price:
+          type: number
+          nullable: true
+      required: [side_code, units, order_type_code, has_limit_price]
+
+    StepResultFields:
+      type: object
+      properties:
+        reward:
+          type: number
+        fill_count:
+          type: integer
+        cumulative_pnl:
+          type: number
+
+    FlowAnchorMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+        hash:
+          type: string
+        start_index:
+          type: integer
+        end_index:
+          type: integer
+        status:
+          type: string
+
+    FlowIndexMetadata:
+      type: object
+      properties:
+        main_step_index:
+          type: integer
+        branch_step_index:
+          type: integer
+
+    UnifiedFlowLog:
+      type: object
+      properties:
+        flow_type:
+          type: string
+          enum: [main, alternative]
+        flow_id:
+          type: string
+        parent_flow_id:
+          type: string
+        hash:
+          type: string
+        status:
+          type: string
+        main_step_index:
+          type: integer
+        branch_step_index:
+          type: integer
+        index_metadata:
+          $ref: "#/components/schemas/FlowIndexMetadata"
+        anchor:
+          $ref: "#/components/schemas/FlowAnchorMetadata"
+        observation:
+          $ref: "#/components/schemas/Observation"
+        last_step_result:
+          $ref: "#/components/schemas/StepResultFields"
+      required: [flow_type, flow_id]
+
+    FlowListResponse:
+      type: object
+      properties:
+        flows:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnifiedFlowLog"
+      required: [flows]
+
+    BranchDecisionPatch:
+      type: object
+      properties:
+        step_offset:
+          type: integer
+          minimum: 0
+        action:
+          $ref: "#/components/schemas/StepFormRequest"
+        encoded_action:
+          $ref: "#/components/schemas/EncodedAction"
+
+    BranchCreateRequest:
+      type: object
+      properties:
+        source_flow_id:
+          type: string
+        parent_flow_id:
+          type: string
+        rollback_steps:
+          type: integer
+          minimum: 1
+        target_main_step_index:
+          type: integer
+          minimum: 0
+        patch_mode:
+          type: string
+          example: decision_patch
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/BranchDecisionPatch"
+        lineage:
+          type: object
+          additionalProperties: true
+      required: [source_flow_id, rollback_steps, target_main_step_index]
+      additionalProperties: true
+
+    BranchCreateResponse:
+      allOf:
+        - $ref: "#/components/schemas/UnifiedFlowLog"
+        - type: object
+          additionalProperties: true
+
+    FlowStepManyRequest:
+      type: object
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/EncodedAction"
+      required: [actions]
+      additionalProperties: true
+
+    FlowStepManyResponse:
+      type: object
+      properties:
+        flow:
+          $ref: "#/components/schemas/UnifiedFlowLog"
+        rewards:
+          type: array
+          items:
+            type: number
+        dones:
+          type: array
+          items:
+            type: boolean
+      additionalProperties: true
+
+    FlowObserveResponse:
+      type: object
+      properties:
+        flow:
+          $ref: "#/components/schemas/UnifiedFlowLog"
+        observation:
+          $ref: "#/components/schemas/Observation"
+        step_result:
+          $ref: "#/components/schemas/StepResultFields"
+      additionalProperties: true
+
+    FlowTraceResponse:
+      type: object
+      properties:
+        flow:
+          $ref: "#/components/schemas/UnifiedFlowLog"
+        trace:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      additionalProperties: true

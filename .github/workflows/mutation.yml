@@ -1,0 +1,45 @@
+name: Mutation Testing
+
+on:
+  schedule:
+    - cron: "0 2 1 * *"   # 1st of every month, 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual run (optional)"
+        required: false
+        type: string
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-mutation.yml@6a9b12a1c8b8a6a8ba0002a8077a1713ddf31be8
+    with:
+      packages: "./internal/..."
+      threshold: 60
+
+  notify-failure:
+    needs: [mutation]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `⚠️ [CI] ${context.workflow} failed (${new Date().toISOString().split('T')[0]})`,
+              body: [
+                `**Workflow:** ${context.workflow}`,
+                `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              ].join('\n'),
+            });
