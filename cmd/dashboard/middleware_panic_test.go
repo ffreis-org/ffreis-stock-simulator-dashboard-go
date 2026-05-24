@@ -11,10 +11,10 @@ import (
 
 // TestLoggingMiddleware_PanicIsObservedNotSilenced verifies the post-fix
 // contract: when a downstream handler panics, the logging middleware must
-//   1. Not re-panic (the old behaviour short-circuited the deferred log/metric
-//      observation and dropped the request from observability).
-//   2. Log the request at level Error with status=500 and a `panic` attr.
-//   3. Record a metric for the request with status 500.
+//  1. Not re-panic (the old behaviour short-circuited the deferred log/metric
+//     observation and dropped the request from observability).
+//  2. Log the request at level Error with status=500 and a `panic` attr.
+//  3. Record a metric for the request with status 500.
 //
 // The standard net/http server still recovers panics at the connection layer
 // and prevents the test process from dying; we simulate that by invoking the
