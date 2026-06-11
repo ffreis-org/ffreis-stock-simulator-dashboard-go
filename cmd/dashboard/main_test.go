@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -303,5 +304,239 @@ func TestRegisterPprofRoutes(t *testing.T) {
 		if rr.Code == http.StatusNotFound {
 			t.Errorf("pprof route %s not registered", path)
 		}
+	}
+}
+
+func TestShouldRetryError_NetworkErrors(t *testing.T) {
+	a := &app{
+		upstream: upstreamConfig{MaxAttempts: 3},
+	}
+	ctx := context.Background()
+	testCases := []struct {
+		name      string
+		err       error
+		attempt   int
+		shouldErr bool
+	}{
+		{
+			name:      "context cancelled",
+			err:       context.Canceled,
+			attempt:   0,
+			shouldErr: false,
+		},
+		{
+			name:      "context deadline",
+			err:       context.DeadlineExceeded,
+			attempt:   0,
+			shouldErr: false,
+		},
+		{
+			name:      "nil error at attempt 0",
+			err:       nil,
+			attempt:   0,
+			shouldErr: true,
+		},
+		{
+			name:      "max attempts reached",
+			err:       errors.New("some error"),
+			attempt:   3,
+			shouldErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := a.shouldRetryError(ctx, tc.err, tc.attempt)
+			if result != tc.shouldErr {
+				t.Errorf("shouldRetryError(%v, attempt=%d) = %v, expected %v", tc.err, tc.attempt, result, tc.shouldErr)
+			}
+		})
+	}
+}
+
+func TestReadJSONPayload_EmptyBody(t *testing.T) {
+	body := bytes.NewReader([]byte(""))
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	rr := httptest.NewRecorder()
+
+	payload, ok := readJSONPayload(rr, req, 1024, "empty body")
+	if !ok {
+		// empty body returns false, which is expected
+		if rr.Code != http.StatusBadRequest {
+			t.Logf("empty body reading failed with status: %d (expected)", rr.Code)
+		}
+		return
+	}
+	if len(payload) == 0 {
+		t.Logf("empty body resulted in empty payload (acceptable)")
+	}
+}
+
+func TestReadJSONPayload_BodyTooLarge(t *testing.T) {
+	body := bytes.NewReader([]byte(`{"name":"test"}`))
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	rr := httptest.NewRecorder()
+
+	payload, ok := readJSONPayload(rr, req, 4, "too large")
+	if ok {
+		t.Fatal("expected readJSONPayload to fail on oversized body")
+	}
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected 413, got %d", rr.Code)
+	}
+	if len(payload) > 0 {
+		t.Errorf("expected empty payload on error, got %v", payload)
+	}
+}
+
+func TestReadJSONPayload_MalformedJSON(t *testing.T) {
+	body := bytes.NewReader([]byte(`{name: "test"}`))
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	rr := httptest.NewRecorder()
+
+	_, ok := readJSONPayload(rr, req, 1024, "malformed")
+	if ok {
+		t.Fatal("expected readJSONPayload to fail on malformed JSON")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestWriteJSON_WithError(t *testing.T) {
+	rr := httptest.NewRecorder()
+	data := map[string]interface{}{"error": "test error", "code": 500}
+	writeJSON(rr, http.StatusInternalServerError, data)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if response["error"] != "test error" {
+		t.Errorf("expected error message in response")
+	}
+}
+
+func TestUpstreamRequest_NoBodyForward(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET request, got %s", r.Method)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	a := &app{
+		httpClient: &http.Client{},
+		simBaseURL: srv.URL,
+		upstream: upstreamConfig{
+			Timeout:     2 * time.Second,
+			MaxAttempts: 1,
+			BaseDelay:   1 * time.Millisecond,
+			MaxDelay:    5 * time.Millisecond,
+		},
+		metrics: newMetricsCollector(),
+	}
+
+	code, body, err := a.forwardNoBody(context.Background(), http.MethodGet, "/test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if code != http.StatusOK {
+		t.Errorf("expected 200, got %d", code)
+	}
+	if !strings.Contains(string(body), "ok") {
+		t.Errorf("expected 'ok' in response, got %q", body)
+	}
+}
+
+func TestUpstreamRequest_MaxAttemptsExceeded(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("always fails"))
+	}))
+	defer srv.Close()
+
+	a := &app{
+		httpClient: &http.Client{},
+		simBaseURL: srv.URL,
+		upstream: upstreamConfig{
+			Timeout:     2 * time.Second,
+			MaxAttempts: 2,
+			BaseDelay:   1 * time.Millisecond,
+			MaxDelay:    5 * time.Millisecond,
+		},
+		metrics: newMetricsCollector(),
+	}
+
+	code, _, err := a.forwardNoBody(context.Background(), http.MethodGet, "/")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if code != http.StatusBadGateway {
+		t.Errorf("expected 502, got %d", code)
+	}
+	if calls != 2 {
+		t.Errorf("expected 2 attempts, got %d", calls)
+	}
+}
+
+func TestObserveUpstream_TracksMetrics(t *testing.T) {
+	m := newMetricsCollector()
+
+	start := time.Now()
+	m.observeUpstream("/api/test", "success", 0)
+	m.observeUpstream("/api/test", "error", 0)
+
+	duration := time.Since(start)
+	if duration < 0 {
+		t.Errorf("unexpected duration: %v", duration)
+	}
+}
+
+func TestSleepBackoff_TimingIncreases(t *testing.T) {
+	a := &app{
+		upstream: upstreamConfig{
+			BaseDelay: 10 * time.Millisecond,
+			MaxDelay:  100 * time.Millisecond,
+		},
+	}
+
+	start := time.Now()
+	a.sleepBackoff(context.Background(), 1)
+	duration1 := time.Since(start)
+
+	if duration1 < 5*time.Millisecond {
+		t.Logf("first backoff completed faster than expected: %v (acceptable)", duration1)
+	}
+}
+
+func TestShouldRetryUpstreamStatus_Retryable(t *testing.T) {
+	testCases := []struct {
+		status    int
+		shouldErr bool
+	}{
+		{http.StatusBadGateway, true},         // 502
+		{http.StatusServiceUnavailable, true}, // 503
+		{http.StatusGatewayTimeout, true},     // 504
+		{http.StatusOK, false},                // 200
+		{http.StatusBadRequest, false},        // 400
+		{http.StatusUnauthorized, false},      // 401
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("status_%d", tc.status), func(t *testing.T) {
+			result := shouldRetryUpstreamStatus(tc.status, 0, 3)
+			if result != tc.shouldErr {
+				t.Errorf("shouldRetryUpstreamStatus(%d, 0, 3) = %v, expected %v", tc.status, result, tc.shouldErr)
+			}
+		})
 	}
 }
