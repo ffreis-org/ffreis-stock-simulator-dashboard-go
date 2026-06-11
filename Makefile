@@ -17,6 +17,8 @@ LEFTHOOK_VERSION ?= 1.7.10
 
 MUTATION_PACKAGES ?= ./internal/...
 MUTATION_THRESHOLD ?= 60
+COVERAGE_MIN      ?= 75
+COVERAGE_PACKAGES ?= ./...
 LEFTHOOK_DIR ?= $(CURDIR)/.bin
 LEFTHOOK_BIN ?= $(LEFTHOOK_DIR)/lefthook
 
@@ -76,14 +78,19 @@ secrets-scan-staged: ## Scan staged diff for secrets
 	@./scripts/hooks/check_required_tools.sh $(GITLEAKS)
 	$(GITLEAKS) protect --staged --redact
 
+## coverage-gate: run tests with coverage; fail if below COVERAGE_MIN
+coverage-gate:
+	@COVERAGE_MIN="$(COVERAGE_MIN)" COVERAGE_PACKAGES="$(COVERAGE_PACKAGES)" \
+		./scripts/hooks/check_coverage_gate.sh
+
 quality-gates: ## Run strict pre-push dashboard quality gates
 	@./scripts/hooks/check_required_tools.sh $(GOVULNCHECK)
 	$(MAKE) lint
 	$(MAKE) openapi-drift-check
 	$(MAKE) test
 	$(MAKE) build-check
+	$(MAKE) coverage-gate
 	$(GOVULNCHECK) ./...
-	@echo "Race and coverage gates are deferred until dashboard test coverage exists."
 
 hook-generated-drift: ## Run generate target if present and fail on drift
 	@set -euo pipefail; \
