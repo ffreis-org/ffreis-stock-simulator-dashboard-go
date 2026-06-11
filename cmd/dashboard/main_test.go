@@ -216,3 +216,92 @@ func TestDoUpstreamRequest_ContextDeadlineStopsRetry(t *testing.T) {
 		t.Fatalf("expected context deadline exceeded, got %v", ctx.Err())
 	}
 }
+
+func TestWriteJSON(t *testing.T) {
+	rr := httptest.NewRecorder()
+	writeJSON(rr, http.StatusOK, map[string]interface{}{"key": "value"})
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %s", ct)
+	}
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&data); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if data["key"] != "value" {
+		t.Errorf("expected key=value, got %v", data)
+	}
+}
+
+func TestReadJSONPayload_ValidJSON(t *testing.T) {
+	body := bytes.NewReader([]byte(`{"name":"test"}`))
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	rr := httptest.NewRecorder()
+
+	payload, ok := readJSONPayload(rr, req, 1024, "invalid")
+	if !ok {
+		t.Fatalf("readJSONPayload failed, status: %d", rr.Code)
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if data["name"] != "test" {
+		t.Errorf("expected name=test, got %v", data)
+	}
+}
+
+func TestReadJSONPayload_InvalidJSON(t *testing.T) {
+	body := bytes.NewReader([]byte(`{invalid}`))
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	rr := httptest.NewRecorder()
+
+	_, ok := readJSONPayload(rr, req, 1024, "parse error")
+	if ok {
+		t.Fatal("expected readJSONPayload to fail on invalid JSON")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestWriteRawJSON(t *testing.T) {
+	rr := httptest.NewRecorder()
+	data := []byte(`{"key":"value"}`)
+	writeRawJSON(rr, http.StatusOK, data)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %s", ct)
+	}
+	if rr.Body.String() != string(data) {
+		t.Errorf("expected body %s, got %s", data, rr.Body.String())
+	}
+}
+
+func TestRegisterPprofRoutes(t *testing.T) {
+	mux := http.NewServeMux()
+	registerPprofRoutes(mux)
+
+	testPaths := []string{
+		"/debug/pprof/",
+		"/debug/pprof/heap",
+		"/debug/pprof/goroutine",
+	}
+
+	for _, path := range testPaths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, req)
+		if rr.Code == http.StatusNotFound {
+			t.Errorf("pprof route %s not registered", path)
+		}
+	}
+}
