@@ -73,3 +73,42 @@ func mapEnv(values map[string]string) func(string) string {
 		return values[key]
 	}
 }
+
+func TestNew(t *testing.T) {
+	logger := New("test-service")
+
+	if logger == nil {
+		t.Fatal("expected logger, got nil")
+	}
+
+	logger.Info("test message")
+}
+
+func TestLoggerError(t *testing.T) {
+	var buf bytes.Buffer
+	logger := newWithEnv("error-test", emptyEnv, &buf)
+
+	logger.Error("error occurred", "code", 500)
+
+	out := buf.String()
+	if !strings.Contains(out, "level=ERROR") && !strings.Contains(out, "level=\"ERROR\"") {
+		t.Fatalf("expected ERROR level in log, got: %s", out)
+	}
+	if !strings.Contains(out, "error occurred") {
+		t.Fatalf("expected error message in log, got: %s", out)
+	}
+}
+
+func TestParseLevel_InvalidLevel(t *testing.T) {
+	_, err := parseLevel("unknown-level")
+	if err == nil {
+		t.Fatal("expected error for invalid level")
+	}
+}
+
+func TestParseFormat_InvalidFormat(t *testing.T) {
+	_, err := parseFormat("invalid-format")
+	if err == nil {
+		t.Fatal("expected error for invalid format")
+	}
+}
