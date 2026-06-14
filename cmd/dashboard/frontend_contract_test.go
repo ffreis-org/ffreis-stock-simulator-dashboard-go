@@ -88,7 +88,7 @@ func TestFrontendScript_MultiAltAndDeleteFlowBehaviors(t *testing.T) {
 	for _, token := range []string{
 		"selectedAltFlowIds",
 		"data-select-alt",
-		"window.confirm(`Delete alternative flow",
+		"globalThis.confirm(`Delete alternative flow",
 		"\"DELETE\"",
 		"renderComparisonTable",
 	} {
