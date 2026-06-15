@@ -1,5 +1,9 @@
 # ffreis-stock-simulator-dashboard-go
 
+<!-- ffreis-badges:start -->
+[![CI](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FelipeFuhr/ffreis-badges/main/badges/ffreis-stock-simulator-dashboard-go/ci.json)](https://github.com/FelipeFuhr/ffreis-stock-simulator-dashboard-go/actions) [![License](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FelipeFuhr/ffreis-badges/main/badges/ffreis-stock-simulator-dashboard-go/license.json)](https://github.com/FelipeFuhr/ffreis-stock-simulator-dashboard-go/blob/main/LICENSE)
+<!-- ffreis-badges:end -->
+
 Go dashboard service for `ffreis-stock-simulator`.
 
 It serves a single-page web dashboard (Go HTML template + CSS + JS) and proxies requests to the simulator HTTP API.
