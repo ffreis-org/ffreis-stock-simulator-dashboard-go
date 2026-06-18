@@ -70,7 +70,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-snyk.yml@d9b0146bb491bf06a79c9c6289034537522cbed3
+    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-snyk.yml@2fe28bc359995c141cca084de02aa69c61b0b4f3
     with:
       working-directory: "."
       upload-sarif: false
