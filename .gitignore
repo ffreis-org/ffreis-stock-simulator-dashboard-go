@@ -1,6 +1,10 @@
 /coverage.out
+/cover.out
 /coverage.html
 *.log
+
+# Compiled binary
+/dashboard
 
 # Sonar / scanner artifacts
 .scannerwork/
