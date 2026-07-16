@@ -9,7 +9,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-labeler.yml@87dcfcaf663040b8e3695e277f1979974936bfa0
+    uses: ffreis-org/ffreis-workflows-general/.github/workflows/general-labeler.yml@87dcfcaf663040b8e3695e277f1979974936bfa0
     with:
       rules-json: |-
         [
