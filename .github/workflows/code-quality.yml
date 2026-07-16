@@ -23,7 +23,7 @@ jobs:
   sonar:
     permissions:
       contents: read
-    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-sonar.yml@e7e2b4fefe6b8e2ad2842025c0d5b6e856ff813d
+    uses: ffreis-org/ffreis-workflows-go/.github/workflows/go-sonar.yml@e7e2b4fefe6b8e2ad2842025c0d5b6e856ff813d
     with:
       go-version: "1.25"
     secrets:

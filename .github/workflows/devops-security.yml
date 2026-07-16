@@ -20,7 +20,7 @@ jobs:
       security-events: write
     # Consolidated fs-security bundle: Trivy(fs) + Grype(fs) + gitleaks in ONE job
     # (was 3 separate jobs). upload-sarif off: GHAS/code-scanning not enabled.
-    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-security-fs.yml@3858e9e74c805067e454740b195372c7195f333b # v1.5.0
+    uses: ffreis-org/ffreis-workflows-general/.github/workflows/general-security-fs.yml@3858e9e74c805067e454740b195372c7195f333b # v1.5.0
     with:
       working-directory: "."
       scan-history: true
@@ -31,7 +31,7 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-codeql.yml@3858e9e74c805067e454740b195372c7195f333b # v1.5.0
+    uses: ffreis-org/ffreis-workflows-general/.github/workflows/general-codeql.yml@3858e9e74c805067e454740b195372c7195f333b # v1.5.0
     with:
       languages: "go"
       source-root: "."
@@ -39,7 +39,7 @@ jobs:
   govulncheck:
     permissions:
       contents: read
-    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-security.yml@d9b0146bb491bf06a79c9c6289034537522cbed3
+    uses: ffreis-org/ffreis-workflows-go/.github/workflows/go-security.yml@d9b0146bb491bf06a79c9c6289034537522cbed3
     with:
       go-version: "1.25.8"
       working-directory: "."
@@ -48,7 +48,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-semgrep-sarif.yml@d9b0146bb491bf06a79c9c6289034537522cbed3
+    uses: ffreis-org/ffreis-workflows-go/.github/workflows/go-semgrep-sarif.yml@d9b0146bb491bf06a79c9c6289034537522cbed3
     with:
       working-directory: "."
       upload-sarif: false
@@ -58,7 +58,7 @@ jobs:
       contents: read
       actions: read
       security-events: write
-    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-osv-scanner.yml@5dfbb4986ceb88f6518fa719da3a255294cf03cf
+    uses: ffreis-org/ffreis-workflows-general/.github/workflows/general-osv-scanner.yml@5dfbb4986ceb88f6518fa719da3a255294cf03cf
     with:
       working-directory: "."
       upload-sarif: false
@@ -70,7 +70,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    uses: FelipeFuhr/ffreis-workflows-go/.github/workflows/go-snyk.yml@2fe28bc359995c141cca084de02aa69c61b0b4f3
+    uses: ffreis-org/ffreis-workflows-go/.github/workflows/go-snyk.yml@2fe28bc359995c141cca084de02aa69c61b0b4f3
     with:
       working-directory: "."
       upload-sarif: false
