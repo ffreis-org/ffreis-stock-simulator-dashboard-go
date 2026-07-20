@@ -18,6 +18,6 @@ jobs:
       security-events: write
       contents: read
       actions: read
-    uses: ffreis-org/ffreis-workflows-general/.github/workflows/general-scorecard.yml@5dfbb4986ceb88f6518fa719da3a255294cf03cf
+    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-scorecard.yml@5dfbb4986ceb88f6518fa719da3a255294cf03cf
     with:
       upload-sarif: true
